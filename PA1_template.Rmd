@@ -1,25 +1,142 @@
----
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
----
+#Programming Assignment 1
 
+##Loading and processing data
 
-## Loading and preprocessing the data
+Reading, understanding, veryfing and transforming the data.
+```{r, echo=TRUE}
+activity<-read.csv("activity.csv")
+head(activity)
+str(activity)
 
+#transforming the date in the correct format
+activity$date<-as.Date(activity$date,"%Y-%m-%d")
+```
 
+##What is mean total number of steps taken per day?
 
-## What is mean total number of steps taken per day?
+The following histogram shows the distribution of total number of steps taken per day.
 
+```{r, echo=TRUE}
+stepsbday<-tapply(activity$steps,activity$date,sum,na.rm=TRUE)
 
+hist(stepsbday,breaks=8,main="Total number of steps taken per day",xlab="Number of Steps")
+```
 
-## What is the average daily activity pattern?
+```{r, echo=TRUE}
+meanperday<-formatC(mean(stepsbday),digits=6)
 
+medianperday<-median(stepsbday)
+```
 
+The mean of total number of steps in a day is `r meanperday` and the median is `r medianperday`. 
+Since this measures are close (considering the range of number of steps) and also analysing the shape of the histogram it is plausible to consider that this data has some symmetry. However, the mass of values closer to zero pulls the average down and disrupts this symmetry.
 
-## Imputing missing values
+##What is the average daily activity pattern?
 
+The graphic bellow presents the pattern of daily activity as the average of October and November from the anonymous individual.
 
+```{r, echo=TRUE}
+stepsb5min<-tapply(activity$steps,activity$interval,mean,na.rm=TRUE)
 
-## Are there differences in activity patterns between weekdays and weekends?
+uniqueinterval<-unique(activity$interval)
+
+plot(uniqueinterval,stepsb5min,type="l",main="Average number of steps in a 5-minute interval across all days",xlab="5-minute interval",ylab="Average number of steps")
+
+```
+
+The begging of the x-axis is closer to zero because it is sleep time for the subject, probably.
+
+```{r, echo=TRUE}
+maxsteps<-0
+posmaxsteps<-0
+
+for(i in 1:288){
+    if(stepsb5min[i]>maxsteps){
+        posmaxsteps<-i
+        maxsteps<-stepsb5min[i]
+    }
+}
+
+max5min<-uniqueinterval[posmaxsteps]
+```
+
+The maximum number of steps for his (or her) occurs at `r max5min` 5-minute interval in a day (in average).
+
+#Imputing missing values
+
+```{r, echo=TRUE}
+datastatistics<-summary(activity)
+missvalues<-datastatistics[7,1]
+```
+
+In the data set activity there are `r missvalues` missing values.
+
+The missing values are replaced by the mean for the correspondent 5-minute interval defined previously in a new dataset: activity1.
+
+```{r, echo=TRUE}
+
+fivemindata<-cbind(stepsb5min,uniqueinterval)
+
+for(i in 1:17568){
+    if(is.na(activity$steps[i])==TRUE){
+        intervalmiss<-activity$interval[i]
+        activity$steps1[i]<-fivemindata[uniqueinterval==intervalmiss,1]
+    }
+    else {activity$steps1[i]<-activity$steps[i]}
+}
+
+#Checking if there isn't NA in the variable steps1
+summary(activity)
+```
+
+```{r, echo=TRUE}
+activity1<-activity[,2:4]
+head(activity1)
+summary(activity1)
+```
+
+To understand the effect of filling in the missing values, we reproduce the histogram and the measures of the beginning.
+
+```{r, echo=TRUE}
+stepsbday1<-tapply(activity1$steps1,activity1$date,sum)
+
+hist(stepsbday1,breaks=8,main="Total number of steps taken per day",xlab="Number of Steps")
+```
+
+By the histogram it is possible to see that the distribution of total number of steps taken per day is closer to symmetry.
+
+```{r, echo=TRUE}
+meanperday1<-formatC(mean(stepsbday1),digits=7)
+
+medianperday1<-formatC(median(stepsbday1),digits=7)
+```
+
+The mean of total number of steps in a day is `r meanperday1` and the median is `r medianperday1`. 
+
+The values of mean and median differs from the first part of the assignment, since they are equal now. 
+
+As well as the histogram shows, imputing values on missing data affects the total daily number of steps because we add steps in the subject day that didn't exist before. Then, when calculating the total number of steps in a day it will be higher.
+
+#Are there differences in activity patterns between weekdays and weekends?
+
+First, we identify weekdays in the dataset:
+```{r, echo=TRUE}
+activity1$dayofweek<-weekdays(activity1$date)
+
+activity1$typeday<-"weekday"
+
+activity1$typeday[activity1$dayofweek=="Sábado" | activity1$dayofweek=="domingo"]<-"weekend"
+```
+
+Then, we take the average number of steps in each 5-minute interval by weekday/weekend and plot the results.
+
+```{r, echo=TRUE}
+library(dplyr)
+timeday<-group_by(activity1,interval,typeday)
+summary_5min<-summarize(timeday,mean5min=sum(steps1))
+
+library(lattice)
+xyplot(mean5min~interval | typeday,data=summary_5min, type="l",xlab="5-minute interval",ylab="Number of steps")
+```
+
+Then, there are differences in activity patterns between weekdays and weekends. During the weekend the average of steps are significantly smaller for the entire day.
